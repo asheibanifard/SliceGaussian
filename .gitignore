@@ -15,3 +15,5 @@ runs/
 *.h5
 *.pt
 *.sgz
+# compiled extension
+*.so

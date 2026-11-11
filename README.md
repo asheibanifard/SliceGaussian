@@ -43,14 +43,21 @@ the ablations and the limitations.
 
 ## Installation
 
-Requirements: Linux, an NVIDIA GPU, CUDA toolkit matching your PyTorch build (the kernel is compiled with `nvcc` on
-first use, which takes about a minute), Python ≥ 3.9, PyTorch ≥ 2.1.
+Requirements: Linux, an NVIDIA GPU, Python ≥ 3.9 and PyTorch ≥ 2.1 with a CUDA toolkit (`nvcc`) of the same CUDA
+version, plus a host compiler that `nvcc` supports. The reference environment, in which the paper's results were
+produced, is Python 3.11 + PyTorch 2.7.1 + CUDA 11.8 + gcc 11:
 
 ```bash
 git clone https://github.com/asheibanifard/SliceGaussian.git
 cd SliceGaussian
-pip install -e ".[hdf5]"          # h5py is only needed to read CREMI .hdf files
+micromamba env create -f environment.yml          # or: conda env create -f environment.yml
+micromamba activate slicegaussian
+SLICEGAUSSIAN_BUILD_CUDA=1 pip install -e . --no-build-isolation
 ```
+
+`SLICEGAUSSIAN_BUILD_CUDA=1` compiles the CUDA extension at install time (`slicegaussian._C`). Without it,
+`pip install -e .` installs the Python package only, and the kernel is compiled from `src/slicegaussian/csrc/` on first
+use (about a minute, then cached by PyTorch). `--no-build-isolation` lets the build see the installed PyTorch.
 
 ## Quick start
 
@@ -121,7 +128,8 @@ slice-adapted 3DGS, NeurComp, CoordNet, INIF, HEVC) were run with their own code
 src/slicegaussian/
   volume.py       loading, normalisation, valid-slice detection, sampling helpers (Stage 1)
   field.py        the Gaussian field, rotations, evaluators, amplitude calibration
-  cuda/fieldcut.py  fused CUDA kernel: planar cut + rasterisation + analytic backward
+  csrc/           C++/CUDA sources: fieldcut_kernel.cu (planar cut + rasterisation + analytic backward), fieldcut.cpp (bindings)
+  cuda/fieldcut.py  autograd wrapper; loads the prebuilt extension or compiles csrc/ on first use
   phase1.py       Stages 2-6: frequency and structure analysis, violation ratio, anisotropic subdivision
   phase2.py       slice-based optimisation with a fixed population and the 2D loss
   reestimate.py   cycles, adequacy check, re-estimation with least-squares children
@@ -131,6 +139,8 @@ src/slicegaussian/
   pipeline.py     end-to-end fit() and the configuration
   cli.py          command-line interface
 configs/          paper.json (settings of the paper), fast.json
+environment.yml   reference conda/micromamba environment (Python 3.11, PyTorch 2.7.1, CUDA 11.8, gcc 11)
+setup.py          optional ahead-of-time build of the CUDA extension
 scripts/          CREMI download and crop, reproduction script, summary
 tests/            checks of the mathematics and the kernel (GPU tests are skipped without CUDA)
 docs/method.md    the method in more detail, with every implementation choice
