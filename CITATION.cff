@@ -1,0 +1,9 @@
+cff-version: 1.2.0
+message: "If you use this software, please cite it as below."
+title: "SliceGaussian: Frequency-aware Gaussian representation of slice-based volumes"
+version: 0.1.0
+date-released: 2026-11-11
+authors:
+  - family-names: Sheibanifard
+    given-names: Armin
+license: MIT

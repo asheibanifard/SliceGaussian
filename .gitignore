@@ -1,0 +1,17 @@
+__pycache__/
+*.py[cod]
+*.egg-info/
+build/
+dist/
+.pytest_cache/
+.ruff_cache/
+.venv/
+# data and results
+data/
+runs/
+*.tif
+*.tiff
+*.hdf
+*.h5
+*.pt
+*.sgz

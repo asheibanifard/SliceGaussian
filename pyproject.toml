@@ -1,0 +1,45 @@
+[build-system]
+requires = ["setuptools>=64", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "slicegaussian"
+version = "0.1.0"
+description = "Frequency-aware Gaussian representation of slice-based volumes"
+readme = "README.md"
+requires-python = ">=3.9"
+license = { file = "LICENSE" }
+authors = [{ name = "Armin Sheibanifard" }]
+keywords = ["gaussian splatting", "volume representation", "electron microscopy", "compression", "cuda"]
+classifiers = [
+  "Programming Language :: Python :: 3",
+  "Environment :: GPU :: NVIDIA CUDA",
+  "Topic :: Scientific/Engineering :: Image Processing",
+]
+dependencies = [
+  "torch>=2.1",
+  "numpy",
+  "tifffile",
+  "pillow",
+]
+
+[project.optional-dependencies]
+hdf5 = ["h5py"]
+dev = ["pytest", "ruff", "h5py"]
+
+[project.scripts]
+slicegaussian = "slicegaussian.cli:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+
+[tool.ruff]
+line-length = 150
+target-version = "py39"
+
+[tool.ruff.lint]
+select = ["E", "F", "W"]
+ignore = ["E731", "E741"]

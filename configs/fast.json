@@ -1,0 +1,6 @@
+{
+ "seed": 0,
+ "codec": false,
+ "p2": {"eval_every": 1000, "full_every": 5000},
+ "reestimation": {"cycles": 1, "cycle_iters": 3000}
+}
