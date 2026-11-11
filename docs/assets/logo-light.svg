@@ -1,0 +1,28 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 128" width="640" height="128" style="--core:#2a78d6;--mid:#2a78d6;--hot:#d6e9ff;--edge:#1f3550;--plane:rgba(31,53,80,0.07);--ink:#0b1b2e;--ink2:#2a78d6" role="img" aria-label="SliceGaussian">
+  <defs>
+    <radialGradient id="g" cx="0.5" cy="0.5" r="0.5">
+      <stop offset="0" stop-color="var(--core)" stop-opacity="0.9"/>
+      <stop offset="0.55" stop-color="var(--mid)" stop-opacity="0.45"/>
+      <stop offset="1" stop-color="var(--mid)" stop-opacity="0"/>
+    </radialGradient>
+    <radialGradient id="c" cx="0.5" cy="0.5" r="0.5">
+      <stop offset="0" stop-color="var(--hot)"/>
+      <stop offset="0.6" stop-color="var(--core)"/>
+      <stop offset="1" stop-color="var(--core)" stop-opacity="0.85"/>
+    </radialGradient>
+  </defs>
+  <!-- the anisotropic 3D Gaussian, tilted -->
+  <ellipse cx="64" cy="64" rx="21" ry="60" transform="rotate(15 64 64)" fill="url(#g)"/>
+  <!-- three slices -->
+  <g stroke="var(--edge)" stroke-width="2.5" stroke-linejoin="round">
+    <path d="M14 94 L64 78 L114 94 L64 110 Z" fill="var(--plane)"/>
+    <path d="M14 64 L64 48 L114 64 L64 80 Z" fill="var(--plane)"/>
+    <path d="M14 34 L64 18 L114 34 L64 50 Z" fill="var(--plane)"/>
+  </g>
+  <!-- the Gaussian's cross-section on each slice: largest on the middle slice -->
+  <ellipse cx="72" cy="34" rx="9" ry="3.6" fill="url(#c)"/>
+  <ellipse cx="64" cy="64" rx="18" ry="6.5" fill="url(#c)"/>
+  <ellipse cx="56" cy="94" rx="9" ry="3.6" fill="url(#c)"/>
+  <text x="142" y="74" font-family="Inter, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="56" font-weight="700" letter-spacing="-1" fill="var(--ink)">Slice<tspan fill="var(--ink2)">Gaussian</tspan></text>
+  <text x="144" y="104" font-family="Inter, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="17" font-weight="500" letter-spacing="0.3" fill="var(--ink)" opacity="0.62">frequency-aware Gaussians for slice-based volumes</text>
+</svg>

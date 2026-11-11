@@ -1,3 +1,10 @@
+<p align="center">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="docs/assets/logo-dark.svg">
+    <img src="docs/assets/logo-light.svg" alt="SliceGaussian" width="560">
+  </picture>
+</p>
+
 # SliceGaussian
 
 **Frequency-aware Gaussian representation of slice-based volumes.**
