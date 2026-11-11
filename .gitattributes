@@ -1,0 +1,6 @@
+# Language detection on GitHub (Linguist)
+*.cu   linguist-language=Cuda
+*.cuh  linguist-language=Cuda
+*.cpp  linguist-language=C++
+# Line endings
+*      text=auto eol=lf
