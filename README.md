@@ -31,14 +31,15 @@ The field is evaluated by a fused CUDA kernel (forward and analytic backward), c
 3D PSNR / SSIM on the 125 × 256 × 256 crops of CREMI A, B and C (40 × 4 × 4 nm), mean ± std over 3 seeds, 3 cycles of
 10,000 iterations (CREMI C scored on its 123 valid slices; slices 14 and 74 are black). One NVIDIA RTX A4000.
 
-| Volume | 3D PSNR (dB) | 3D SSIM | Gaussians | Total time (Phase I included) |
+| Volume | 3D PSNR (dB) | 3D SSIM | Gaussians | Accounted fit time (Phase I included) |
 |---|---|---|---|---|
 | CREMI A | 39.05 ± 0.003 | 0.987 | 519k | 324 s |
 | CREMI B | 37.29 ± 0.006 | 0.988 | 473k | 303 s |
 | CREMI C | 39.64 ± 0.012 | 0.992 | 674k | 340 s |
 
 For comparison, GaussianPile reaches 32.3 / 31.1 / 31.5 dB with about 1.0M Gaussians in about 208 s; SliceGaussian
-reaches that fidelity after 1,500–2,100 iterations (18–23 s including Phase I). See the paper for the full comparison,
+reaches that fidelity after 1,500–2,100 iterations (18–23 s including Phase I). These are time-to-quality measurements; the complete fit takes longer than GaussianPile.
+The table reports accounted fitting time, excluding evaluations and data loading. See the paper for the full comparison,
 the ablations and the limitations.
 
 ## Installation
@@ -121,6 +122,19 @@ bash scripts/reproduce_cremi.sh      # CREMI A, B, C x seeds 0, 1, 2; about 5-6 
 
 `scripts/summarize.py runs` prints mean ± std over seeds. Timings depend on the GPU. The baselines (GaussianPile,
 slice-adapted 3DGS, NeurComp, CoordNet, INIF, HEVC) were run with their own code and are not part of this repository.
+
+A capacity-matched structure-aware online densification baseline and a paired
+upfront-versus-delayed allocation control are available in
+[scripts/allocation_ablation.py](scripts/allocation_ablation.py). See the
+[protocol](docs/allocation_ablation.md) for the five arms, exact count matching,
+timing accounting, reproduction command and measured results. Across CREMI A/B/C,
+applying the same violation-based split tree upfront improves final PSNR by
+0.96 / 0.91 / 1.35 dB over replaying it during optimisation (one run per volume).
+
+The [end-to-end wall-clock study](docs/wallclock.md) compares the full three-cycle
+method against GaussianPile using six PSNR thresholds. Its synchronized
+`wall_seconds` includes loading, preprocessing, CUDA setup and operations,
+re-estimation and evaluations; it is separate from accounted fitting time.
 
 ## Repository layout
 

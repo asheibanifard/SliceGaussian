@@ -49,3 +49,15 @@ Child amplitudes are set by a closed-form per-axis least-squares fit of the pare
 alternative `"grid"` rule is kept for comparison. The methodology specifies where to subdivide (the violation ratio) but
 not when the representation is adequate; here an optional PSNR target stops the run, and otherwise the fixed number of
 cycles is used.
+
+## Timing
+
+The legacy `seconds` trace field accumulates synchronized optimisation spans and
+between-cycle checks; `total_seconds` adds Phase I. These accounted fitting times
+exclude diagnostic evaluations and volume loading. They are distinct from
+`wall_seconds`, measured with a monotonic clock and CUDA synchronization through
+evaluations and re-estimation. In `fit()` the volume is already loaded, so its
+clock begins at Phase I; the dedicated fresh-process wall-clock benchmark passes
+a clock origin from before imports and volume loading. Its timelines include all
+fitting/measurement overhead through the final check, before model export.
+See [the wall-clock protocol](wallclock.md) for the cache policy and quality thresholds.

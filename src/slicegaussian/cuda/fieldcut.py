@@ -25,10 +25,13 @@ _CSRC = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
 def _ext():
     """The compiled extension: the prebuilt slicegaussian._C if the package was installed with
-    SLICEGAUSSIAN_BUILD_CUDA=1, otherwise compiled from csrc/ on first use (cached by PyTorch)."""
+    SLICEGAUSSIAN_BUILD_CUDA=1, otherwise compiled from csrc/ on first use (JIT, cached by PyTorch).
+    SLICEGAUSSIAN_JIT=1 always uses the JIT build from csrc/."""
     global _EXT
     if _EXT is None:
         try:
+            if os.environ.get("SLICEGAUSSIAN_JIT", "0") == "1":
+                raise ImportError("JIT requested")
             from .. import _C as ext
         except ImportError:
             from torch.utils.cpp_extension import load

@@ -48,6 +48,11 @@ class P2Config:
     full_every: int = 5000              # full metrics (3D SSIM, gradient and band errors) here, at 0 and at the end
     snapshot_every: int = 0             # > 0: save GT | prediction | difference images of 3 fixed slices
     seed: int = 0
+    # Shared-protocol options (the comparison with GaussianPile / 3DGS / SAD-GS under identical training settings):
+    loss: str = "slicegaussian"         # slicegaussian (the terms above) | l1_dssim (L1 + lambda_ssim D-SSIM, 3DGS)
+    lambda_ssim: float = 0.2
+    extent: str = "volume"              # volume (Volume.extent) | gaussianpile (|((W-1)dx, (H-1)dy, (Z-1)dz)| / 2)
+    lr_total_iterations: int = 0        # > 0: one decay over this many iterations across cycles (it_offset-based)
 
 
 _KERNELS = {}
@@ -73,9 +78,31 @@ def _blur2d(v, sx, sy):
     return x[:, 0]
 
 
+def ssim2d(a, b, data_range=1.0, size=11, sigma=1.5):
+    """2D SSIM with an 11 x 11 Gaussian window (sigma 1.5), zero padding: the same computation as
+    gaussianpile.losses.ssim used by GaussianPile, 3DGS and SAD-GS, so the shared D-SSIM term is identical."""
+    x = torch.arange(size, dtype=a.dtype, device=a.device) - (size - 1) / 2
+    g = torch.exp(-(x ** 2) / (2 * sigma ** 2))
+    g = g / g.sum()
+    w = (g[:, None] * g[None, :])[None, None]
+    a, b, pad = a[None, None], b[None, None], size // 2
+    mu_a, mu_b = F.conv2d(a, w, padding=pad), F.conv2d(b, w, padding=pad)
+    saa = F.conv2d(a * a, w, padding=pad) - mu_a ** 2
+    sbb = F.conv2d(b * b, w, padding=pad) - mu_b ** 2
+    sab = F.conv2d(a * b, w, padding=pad) - mu_a * mu_b
+    C1, C2 = (0.01 * data_range) ** 2, (0.03 * data_range) ** 2
+    return (((2 * mu_a * mu_b + C1) * (2 * sab + C2)) / ((mu_a ** 2 + mu_b ** 2 + C1) * (saa + sbb + C2))).mean()
+
+
 def losses(pred, gt, valid, field, vol, cfg):
     """pred, gt (P, H, W): the rendered slice(s); every term is 2D, per slice. valid (P,) bool."""
     pred, gt = pred[valid], gt[valid]
+    if cfg.loss == "l1_dssim":
+        parts = {"vox": (gt - pred).abs().mean(),
+                 "dssim": torch.stack([1.0 - ssim2d(p, g) for p, g in zip(pred, gt)]).mean()}
+        return parts["vox"] + cfg.lambda_ssim * parts["dssim"], parts
+    if cfg.loss != "slicegaussian":
+        raise ValueError(f"unknown loss {cfg.loss!r}")
     _, dy, dx = vol.spacing()
     parts = {"vox": (gt - pred).abs().mean()}
     L = parts["vox"]
@@ -117,13 +144,21 @@ def clamp_anisotropy(field, ratio):
     ls.copy_(torch.maximum(ls, top - math.log(ratio)))
 
 
-def train(field, vol, cfg, log=None, extra_eval=None, snapshot_dir=None, stop=None, it_offset=0, sec_offset=0.0):
+def train(field, vol, cfg, log=None, extra_eval=None, snapshot_dir=None, stop=None, it_offset=0, sec_offset=0.0, wall_start=None):
     """Optimizes field in place. Returns the trace: one row per evaluation, with the whole-volume metrics, the
-    elapsed optimization time (evaluations excluded), the loss parts and the peak GPU memory."""
+    elapsed optimization time (evaluations excluded), the loss parts and the peak GPU memory.
+    If wall_start is supplied, also records synchronized elapsed wall time including evaluations."""
     rng = random.Random(cfg.seed)
     torch.manual_seed(cfg.seed)
     lrs = {"xyz": cfg.lr_xyz, "log_scale": cfg.lr_log_scale, "quat": cfg.lr_quat, "amp": cfg.lr_amp}
-    field.setup_optimizer(lrs, vol.extent, cfg.iterations, cfg.final_ratio)
+    if cfg.extent == "gaussianpile":
+        extent = 0.5 * math.sqrt(((vol.W - 1) * vol.dx) ** 2 + ((vol.H - 1) * vol.dy) ** 2 + ((vol.Z - 1) * vol.dz) ** 2)
+    elif cfg.extent == "volume":
+        extent = vol.extent
+    else:
+        raise ValueError(f"unknown extent {cfg.extent!r}")
+    global_lr = cfg.lr_total_iterations > 0
+    field.setup_optimizer(lrs, extent, cfg.lr_total_iterations if global_lr else cfg.iterations, cfg.final_ratio)
     starts = [k for k in range(0, vol.Z - cfg.slab + 1) if any(vol.valid_z[k:k + cfg.slab].tolist())]
     at = sorted({int(x) for x in cfg.eval_at.split(",") if int(x) <= cfg.iterations} |
                 set(range(0, cfg.iterations + 1, cfg.eval_every)) | {cfg.iterations})
@@ -134,6 +169,8 @@ def train(field, vol, cfg, log=None, extra_eval=None, snapshot_dir=None, stop=No
 
     def evaluate(it, parts):
         full = it == 0 or it == cfg.iterations or (it + it_offset) % cfg.full_every == 0
+        torch.cuda.synchronize()
+        eval_start = time.perf_counter()
         row = {"iteration": it + it_offset, "seconds": opt_seconds + sec_offset, "gaussians": len(field),
                **{f"loss_{k}": float(v) for k, v in parts.items()}, **metrics.whole(field, vol, full=full),
                "peak_vram_gb": torch.cuda.max_memory_allocated() / 2 ** 30 if torch.cuda.is_available() else 0.0}
@@ -141,6 +178,11 @@ def train(field, vol, cfg, log=None, extra_eval=None, snapshot_dir=None, stop=No
             row.update(extra_eval(field, vol))
         if snapshot_dir and cfg.snapshot_every > 0 and (it + it_offset) % cfg.snapshot_every == 0:
             snapshots.save(field, vol, snap_ks, it + it_offset, row["psnr"], snapshot_dir)
+        if wall_start is not None:
+            torch.cuda.synchronize()
+            eval_end = time.perf_counter()
+            row.update({"wall_before_eval_seconds": eval_start - wall_start,
+                        "wall_seconds": eval_end - wall_start, "evaluation_seconds": eval_end - eval_start})
         trace.append(row)
         if log:
             log(row)
@@ -150,7 +192,7 @@ def train(field, vol, cfg, log=None, extra_eval=None, snapshot_dir=None, stop=No
     for it in range(1, cfg.iterations + 1):
         torch.cuda.synchronize()
         t0 = time.perf_counter()
-        field.set_lr(it)
+        field.set_lr(it + it_offset if global_lr else it)
         k0 = rng.choice(starts)
         ks = list(range(k0, k0 + cfg.slab))
         pred = render_planes(field, vol, ks)

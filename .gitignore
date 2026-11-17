@@ -17,3 +17,9 @@ runs/
 *.sgz
 # compiled extension
 *.so
+# paper (not part of the code release)
+paper-cvpr2027/
+author-kit-*.zip
+SliceGaussian__*.zip
+*.docx
+Screenshot From *.png

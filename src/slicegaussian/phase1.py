@@ -24,7 +24,9 @@ Implementation choices where the methodology leaves the method open (each one is
            the pipeline then applies one global least-squares amplitude scale.
 
 Ablation switches (used in the paper's Tables 1, 2 and 4): frequency = isotropic, structure = none,
-subdivision = isotropic | structure_energy, target_count > 0 (bisection on tau_q to reach a given count).
+subdivision = isotropic | structure_energy, target_count > 0 (bisection on tau_q to reach a given count),
+analysis = slice (image-space control: every filter, gradient and tensor is 2D within each slice, so no axial
+frequency or structure is measured and no Gaussian is split for axial detail).
 """
 from __future__ import annotations
 
@@ -47,6 +49,9 @@ class P1Config:
     scale_step: float = math.sqrt(2.0)
     rho_factor: float = 2.0
     gamma: float = 2.0
+    analysis: str = "volume"         # volume (3D) | slice (2D per slice, image-space control)
+    presmooth: float = 0.0            # > 0: fixed in-plane Gaussian denoising (std, in-plane pixels) of the
+                                      # analysed volume only; training and scoring use the raw data
     eps_w: float = 1e-12
     eps_k: float = 1e-9
     eps_trace: float = 1e-12
@@ -109,10 +114,19 @@ def analyse(vol, cfg, timer=None):
     dev = vol.gt.device
     with timer("1_preprocessing"):
         V = torch.from_numpy(vol.analysis_volume).to(dev)
+        if cfg.presmooth > 0:
+            V = blur3d(V[None], (0.0, cfg.presmooth, cfg.presmooth))[0]
     sig = [cfg.sigma_min * unit]
     while sig[-1] * cfg.scale_step <= cfg.sigma_max * unit + 1e-9:
         sig.append(sig[-1] * cfg.scale_step)
-    blur = lambda v, s: blur3d(v, (s / dz, s / dy, s / dx))
+    if cfg.analysis not in ("volume", "slice"):
+        raise ValueError(f"unknown analysis {cfg.analysis!r}")
+    flat = cfg.analysis == "slice"
+    blur = lambda v, s: blur3d(v, (0.0 if flat else s / dz, s / dy, s / dx))
+
+    def grad(v):                                                                 # (gx, gy, gz)
+        gz, gy, gx = torch.gradient(v, spacing=(dz, dy, dx))
+        return gx, gy, torch.zeros_like(gz) if flat else gz
     shape = V.shape
     Wsum = torch.zeros((1,) + shape, device=dev)
     Kacc, Gacc, Jacc = torch.zeros_like(Wsum), torch.zeros((6,) + shape, device=dev), torch.zeros((6,) + shape, device=dev)
@@ -130,11 +144,11 @@ def analyse(vol, cfg, timer=None):
             Kacc += w * ks
             Wsum += w
         with timer("4_directional_wavelength"):
-            T = blur(sym6(torch.gradient(D, spacing=(dz, dy, dx))[::-1]), rho)
+            T = blur(sym6(grad(D)), rho)
             T = T / (T[0] + T[2] + T[5] + 1e-30)
             Gacc += w * ks ** 2 * T
         with timer("3_structure_tensor"):
-            J = blur(sym6(torch.gradient(cur[0], spacing=(dz, dy, dx))[::-1]), rho)
+            J = blur(sym6(grad(cur[0])), rho)
             J = J / (J[0] + J[2] + J[5] + cfg.eps_trace)
             Jacc += w * J
         bands.append({"sigma_a": sa, "sigma_b": sb, "k_s": ks, "wavelength": 1 / ks})

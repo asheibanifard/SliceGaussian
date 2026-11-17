@@ -113,6 +113,7 @@ def fit(volume, out, cfg: Config | None = None, snapshots=False, verbose=True):
         w.writerows(trace)
     final = dict(trace[-1])
     final.update({"init_seconds": info["init_seconds"], "total_seconds": info["total_seconds"],
+                  "wall_seconds": info["wall_seconds"],
                   "initial_psnr": trace[0]["psnr"], "gaussians": len(field)})
     field.save(os.path.join(out, "model.pt"))
     if cfg.codec:

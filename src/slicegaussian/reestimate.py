@@ -100,23 +100,28 @@ def q_remaining(field, vol, fields, p1, seed):
 
 
 def run_cycles(vol, p1, p2, cycles=3, cycle_iters=10000, budget=1_000_000, target=None, refit="ls",
-               log=None, snapshot_dir=None):
+               log=None, snapshot_dir=None, wall_start=None):
     """Phase I, then `cycles` x (Phase II of cycle_iters iterations, check, re-estimation if needed).
     Returns (field, info, trace)."""
     timer = Timer()
+    torch.cuda.synchronize()
     t0 = time.perf_counter()
+    wall_start = t0 if wall_start is None else wall_start
+    wall_events = []
     init, st, fields = phase1.run(vol, p1, timer=timer)
     field = GaussianField(init["xyz"], init["scales"], init["R"], init["amp"], device=vol.device)
     scale = calibrate_amplitude(field, vol)
+    torch.cuda.synchronize()
     p1_seconds = time.perf_counter() - t0
     phases = [{"phase": "I", "cycle": 0, "seconds": p1_seconds, "gaussians": len(field)}]
     trace, used, sec = [], 0, 0.0
     for c in range(cycles):
         cfg = phase2.P2Config(**{**p2.__dict__, "iterations": cycle_iters, "seed": p2.seed + 101 * c})
-        tr = phase2.train(field, vol, cfg, log=log, snapshot_dir=snapshot_dir, it_offset=used, sec_offset=sec)
+        tr = phase2.train(field, vol, cfg, log=log, snapshot_dir=snapshot_dir, it_offset=used, sec_offset=sec, wall_start=wall_start)
         trace += [{**r, "cycle": c} for r in tr]
         start_psnr = trace[0]["psnr"] if c == 0 else phases[-1].get("psnr_after", phases[-1]["psnr"])
         used, sec = tr[-1]["iteration"], tr[-1]["seconds"]
+        torch.cuda.synchronize()
         t1 = time.perf_counter()
         qr = q_remaining(field, vol, fields, p1, seed=7 + c)
         ev = {"cycle": c, "iteration": used, "psnr": tr[-1]["psnr"], "ssim": tr[-1].get("ssim"),
@@ -128,7 +133,13 @@ def run_cycles(vol, p1, p2, cycles=3, cycle_iters=10000, budget=1_000_000, targe
             ev["subdivided"] = subdivide(field, vol, fields, p1, budget, seed=11 + c, refit=refit)
             ev["gaussians_after"] = len(field)
             ev["psnr_after"] = metrics.whole(field, vol, full=False)["psnr"]
-        dt = time.perf_counter() - t1
+        torch.cuda.synchronize()
+        check_end = time.perf_counter()
+        dt = check_end - t1
+        wall_events.append({"iteration": used, "cycle": c, "timing_event": "reestimate" if ev["fired"] else "check",
+                            "wall_seconds": check_end - wall_start, "seconds": sec + dt,
+                            "psnr": ev.get("psnr_after", ev["psnr"]), "gaussians": len(field),
+                            "check_start_wall_seconds": t1 - wall_start, "check_seconds": dt})
         sec += dt
         phases.append({"phase": "II", "cycle": c, "end_iteration": used, "psnr": tr[-1]["psnr"]})
         phases.append({"phase": "check", "seconds": dt, **ev})
@@ -138,6 +149,7 @@ def run_cycles(vol, p1, p2, cycles=3, cycle_iters=10000, budget=1_000_000, targe
             break
     info = {"phases": phases, "phase1": st, "amplitude_scale": scale, "init_seconds": p1_seconds,
             "gaussians": len(field), "total_seconds": p1_seconds + sec,
+            "wall_seconds": time.perf_counter() - wall_start, "wall_events": wall_events,
             "reestimation": {"cycles": cycles, "cycle_iters": cycle_iters, "budget": budget, "target": target,
                              "refit": refit}}
     return field, info, trace

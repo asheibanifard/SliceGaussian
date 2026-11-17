@@ -122,3 +122,18 @@ def test_end_to_end_small(tmp_path):
     assert final["psnr"] > final["initial_psnr"]
     for f in ("model.pt", "model.sgz", "final.json", "trace.csv", "progress.log", "config.json"):
         assert (tmp_path / f).exists(), f
+
+    # The synchronized wall clock includes Phase I, evaluations and the last adequacy check.
+    import csv
+    import json
+    with (tmp_path / "trace.csv").open() as f:
+        rows = list(csv.DictReader(f))
+    walls = [float(r["wall_seconds"]) for r in rows]
+    assert walls == sorted(walls)
+    assert final["wall_seconds"] >= walls[-1]
+    assert final["wall_seconds"] >= final["total_seconds"]
+    info = json.loads((tmp_path / "run.json").read_text())
+    assert len(info["wall_events"]) == 2
+    for event in info["wall_events"]:
+        before = [float(r["wall_seconds"]) for r in rows if int(r["iteration"]) == event["iteration"]]
+        assert before and event["wall_seconds"] >= max(before)
