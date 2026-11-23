@@ -83,7 +83,7 @@ def main(argv=None):
     f.add_argument("volume", help="(Z, Y, X) stack: .tif, .npy or CREMI .hdf")
     f.add_argument("--spacing", type=_triple, required=True, help="voxel spacing dz,dy,dx in physical units")
     f.add_argument("--out", required=True, help="output folder")
-    f.add_argument("--config", help="JSON settings (see configs/paper.json)")
+    f.add_argument("--config", help="YAML or JSON settings (see configs/config.yml)")
     f.add_argument("--seed", type=int)
     f.add_argument("--cycles", type=int, help="Phase II cycles (default 3)")
     f.add_argument("--cycle-iters", type=int, help="iterations per cycle (default 10000)")

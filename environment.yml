@@ -21,5 +21,6 @@ dependencies:
       - numpy
       - tifffile
       - pillow
+      - pyyaml
       - h5py
       - pytest

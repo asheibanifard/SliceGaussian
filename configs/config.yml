@@ -1,0 +1,44 @@
+# SliceGaussian settings: the settings of the paper (identical to configs/paper.json).
+# Copy this file, change what you need, and pass it with --config. Settings left out keep the code's defaults.
+seed: 0
+codec: true                     # also measure the encoded size and the decoded fidelity
+
+p1:                             # Phase I: population estimation
+  sigma_min: 0.5                # smallest and largest analysis scale, in units of the smallest voxel spacing
+  sigma_max: 16.0
+  lam_scale: 1.0781238227406251 # wavelength calibration constant; leave as is
+  parent_spacing: 10.0          # grid of candidate Gaussians, in units of the smallest voxel spacing
+  frequency: directional        # directional | isotropic
+  structure: tensor             # tensor | none
+  aggregation: p90              # centre | mean | max | p75 | p90 | p95
+  subdivision: anisotropic      # anisotropic | isotropic | structure_energy
+  support_radius: 2.0           # support sampled for the violation ratio, in standard deviations
+  support_samples: 64
+  tau_q: 0.1                    # subdivision threshold: lower = more Gaussians, higher fidelity
+  n_max: 4                      # most children per axis
+  max_children: 64              # most children per candidate
+  max_gaussians: 2000000        # safety limit (GPU memory), not a target
+  b: 1.0
+
+p2:                             # Phase II: optimisation with a fixed population
+  slab: 1                       # slices per iteration
+  beta_g: 0.1                   # weight of the gradient term
+  beta_m: 0.1                   # weight of the multiscale term
+  beta_r: 0.1                   # weight of the amplitude regularization
+  multi: smooth                 # smooth | band | none
+  multi_sigmas: "2,4"           # in in-plane pixels; keep the quotes
+  lr_xyz: 0.000016              # learning rates (centres: multiplied by the scene extent)
+  lr_log_scale: 0.001
+  lr_quat: 0.0002
+  lr_amp: 0.00025
+  final_ratio: 0.1
+  max_anisotropy: 1000.0        # limit on largest / smallest scale of a Gaussian
+  eval_every: 100               # whole-volume evaluation interval (not counted in the reported time)
+  full_every: 5000              # interval of the full metrics (SSIM, gradient and band errors)
+
+reestimation:                   # cycles of Phase II, with re-estimation between them
+  cycles: 3
+  cycle_iters: 10000            # iterations per cycle
+  budget: 1000000               # safety limit on the count for re-estimation, not a target
+  target: null                  # stop at the end of a cycle once this 3D PSNR (dB) is reached; null = never
+  refit: ls                     # ls | grid: how child amplitudes are set at a re-estimation

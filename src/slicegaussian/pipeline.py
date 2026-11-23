@@ -40,6 +40,8 @@ class Config:
             for k, v in (d.get(name) or {}).items():
                 if k not in {f.name for f in dc_fields(sub)}:
                     raise KeyError(f"unknown setting {name}.{k}")
+                if isinstance(v, str) and isinstance(getattr(sub, k), float):
+                    v = float(v)                             # YAML reads 1e-3 (no decimal point) as text
                 setattr(sub, k, v)
         for k in ("seed", "codec"):
             if k in d:
@@ -48,7 +50,11 @@ class Config:
 
     @staticmethod
     def load(path):
+        """Settings from a .json, .yml or .yaml file; settings the file leaves out keep their defaults."""
         with open(path) as f:
+            if str(path).lower().endswith((".yml", ".yaml")):
+                import yaml
+                return Config.from_dict(yaml.safe_load(f) or {})
             return Config.from_dict(json.load(f))
 
 

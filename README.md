@@ -76,6 +76,7 @@ slicegaussian eval   runs/cremi_a/model.pt data/cremi/cremi_a.tif --spacing 40,4
 
 Any (Z, Y, X) stack in `.tif`, `.npy` or CREMI-style `.hdf` works; pixels must be square (`dy == dx`). Spacing is in
 physical units (any unit, used consistently). `configs/fast.json` runs a single short cycle for a quick check.
+Settings can be YAML (`configs/config.yml`) or JSON; see the [running guide](docs/running.md).
 
 Useful options of `slicegaussian fit`:
 
@@ -152,7 +153,7 @@ src/slicegaussian/
   snapshots.py    ground truth / prediction / difference images
   pipeline.py     end-to-end fit() and the configuration
   cli.py          command-line interface
-configs/          paper.json (settings of the paper), fast.json
+configs/          paper.json (settings of the paper), config.yml (the same, commented), fast.json
 environment.yml   reference conda/micromamba environment (Python 3.11, PyTorch 2.7.1, CUDA 11.8, gcc 11)
 setup.py          optional ahead-of-time build of the CUDA extension
 scripts/          CREMI download and crop, reproduction script, summary
