@@ -56,7 +56,7 @@ def main():
     noise = (V - D)[ids]
     out = {"reference": {f"sigma{s}": {"psnr_vs_raw": psnr(R[ids], V[ids])} for s, R in refs.items()},
            "noise_bands": bands(noise), "methods": {}}
-    print(f"denoised references vs raw: " + ", ".join(f"sigma {s}: {out['reference'][f'sigma{s}']['psnr_vs_raw']:.2f} dB"
+    print("denoised references vs raw: " + ", ".join(f"sigma {s}: {out['reference'][f'sigma{s}']['psnr_vs_raw']:.2f} dB"
                                                         for s in refs))
     print("noise estimate V - D, energy by band:", {k: round(v, 3) for k, v in out["noise_bands"].items()})
     print(f"{'method':14s} {'raw':>6s} {'ref1':>6s} {'ref1.5':>6s} {'beta':>6s}   residual bands low/mid/high")

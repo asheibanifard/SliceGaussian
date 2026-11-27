@@ -6,21 +6,32 @@ Every reconstruction is the saved prediction of the run reported in the paper (r
 seed 0). Each is re-scored on the whole volume and must reproduce its recorded PSNR within 0.02 dB. Image tiles are
 embedded at >= 1000 pixels per inch without interpolation (pixel replication).
 """
+
 import argparse
 import json
 from pathlib import Path
 
 import matplotlib
+
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 import numpy as np
 import torch
 
 ROOT = Path(__file__).resolve().parents[1]
-VOLUMES = [("EPFL CA1", "epfl", "data/epfl/epfl_ca1.tif", (5.0, 5.0, 5.0), 62),
-           ("SNEMI3D", "snemi3d", "data/snemi3d/snemi3d.tif", (29.0, 6.0, 6.0), 50)]
-METHODS = [("SliceGaussian", "slicegaussian"), ("GaussianPile", "gaussianpile"), ("3DGS", "3dgs"),
-           ("SAD-GS", "sadgs3d"), ("NeurComp", "neurcomp"), ("INIF", "inif"), ("CoordNet", "coordnet")]
+VOLUMES = [
+    ("EPFL CA1", "epfl", "data/epfl/epfl_ca1.tif", (5.0, 5.0, 5.0), 62),
+    ("SNEMI3D", "snemi3d", "data/snemi3d/snemi3d.tif", (29.0, 6.0, 6.0), 50),
+]
+METHODS = [
+    ("SliceGaussian", "slicegaussian"),
+    ("GaussianPile", "gaussianpile"),
+    ("3DGS", "3dgs"),
+    ("SAD-GS", "sadgs3d"),
+    ("NeurComp", "neurcomp"),
+    ("INIF", "inif"),
+    ("CoordNet", "coordnet"),
+]
 DIFF = 0.15
 
 
@@ -46,12 +57,14 @@ def main():
     p.add_argument("--preview", default="")
     a = p.parse_args()
     from slicegaussian import load_volume, metrics
-    plt.rcParams.update({"pdf.fonttype": 42, "font.family": "serif", "font.serif": ["Times New Roman", "TeX Gyre Termes"],
-                         "mathtext.fontset": "stix", "font.size": 7})
+
+    plt.rcParams.update(
+        {"pdf.fonttype": 42, "font.family": "serif", "font.serif": ["Times New Roman", "TeX Gyre Termes"], "mathtext.fontset": "stix", "font.size": 7}
+    )
     cols = 1 + len(METHODS)
     W = 7.16
-    t = (W - 0.30) / cols                                     # tile size (inches)
-    block = 0.17 + 0.13 + t + 0.03 + t + 0.15                 # volume title, column titles, two rows, labels
+    t = (W - 0.30) / cols  # tile size (inches)
+    block = 0.17 + 0.13 + t + 0.03 + t + 0.15  # volume title, column titles, two rows, labels
     H = len(VOLUMES) * block + 0.04
     fig = plt.figure(figsize=(W, H))
     top = H - 0.02
@@ -72,7 +85,8 @@ def main():
             for c, (name, img, score) in enumerate(rows):
                 x0 = 0.28 + c * t
                 ax = fig.add_axes([x0 / W, y0 / H, (t - 0.02) / W, (t - 0.02) / H])
-                ax.set_xticks([]); ax.set_yticks([])
+                ax.set_xticks([])
+                ax.set_yticks([])
                 for sp in ax.spines.values():
                     sp.set_linewidth(0.5)
                 if r == 0:
@@ -80,14 +94,12 @@ def main():
                     ax.set_title(name, fontsize=7, pad=2, fontweight="bold" if name == "SliceGaussian" else "normal")
                 elif score is None:
                     ax.axis("off")
-                    ax.text(0.5, 0.5, f"colour range\n$\\pm${DIFF}", ha="center", va="center", fontsize=6.5,
-                            transform=ax.transAxes)
+                    ax.text(0.5, 0.5, f"colour range\n$\\pm${DIFF}", ha="center", va="center", fontsize=6.5, transform=ax.transAxes)
                 else:
                     ax.imshow(up(img - gt, t), cmap="RdBu_r", vmin=-DIFF, vmax=DIFF, interpolation="none")
                     sl = -10 * np.log10(np.mean((img - gt) ** 2))
                     ax.set_xlabel(f"{sl:.2f} dB", fontsize=6.5, labelpad=1.5)
-            fig.text(0.16 / W, (y0 + t / 2) / H, ["reconstruction", "difference"][r], rotation=90, ha="center",
-                     va="center", fontsize=6.5)
+            fig.text(0.16 / W, (y0 + t / 2) / H, ["reconstruction", "difference"][r], rotation=90, ha="center", va="center", fontsize=6.5)
         top -= block
     fig.savefig(a.out, dpi=1000)
     if a.preview:

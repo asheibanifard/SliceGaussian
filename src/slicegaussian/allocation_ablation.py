@@ -185,7 +185,7 @@ def run(vol, cfg, rounds=3, cycle_iters=7500, log=None, on_arm=None, segments=No
                                   "total_seconds": overhead + opt_seconds}, "trace": trace, "splits": events}
         if on_arm:
             on_arm(arm, results[arm], field)
-        del field
+        field = None                                            # release the population before the next arm
     paired = ({key: results["violation_upfront"]["final"][key] - results["violation_replay"]["final"][key]
                for key in ("psnr", "ssim", "mae", "total_seconds")}
               if {"violation_upfront", "violation_replay"} <= set(results) else None)

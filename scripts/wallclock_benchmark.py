@@ -7,11 +7,11 @@ Model export/plotting happen after the clock stops. Existing extension caches ar
 import time
 PROCESS_START = time.perf_counter()
 
-import argparse
-import csv
-import json
-from pathlib import Path
-import sys
+import argparse  # noqa: E402 (imports are timed: the clock starts first)
+import csv  # noqa: E402 (imports are timed: the clock starts first)
+import json  # noqa: E402 (imports are timed: the clock starts first)
+from pathlib import Path  # noqa: E402 (imports are timed: the clock starts first)
+import sys  # noqa: E402 (imports are timed: the clock starts first)
 
 
 def main():

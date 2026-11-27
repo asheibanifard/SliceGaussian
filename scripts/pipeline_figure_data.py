@@ -3,7 +3,9 @@ trained model of the same volume. Writes one .npz used by scripts/plot_pipeline.
 
     python scripts/pipeline_figure_data.py --model runs/wallclock/cremi_a/slicegaussian/model.pt --out <file.npz>
 """
-import argparse, json
+
+import argparse
+import json
 import numpy as np
 import torch
 from slicegaussian import phase1
@@ -20,7 +22,7 @@ def sections(mu, cov, zc, box):
     m = mu[:, :2] + b * d[:, None]
     k = (d.abs() < 1.5 * sz.sqrt()) & (m[:, 0] > x0 - 8) & (m[:, 0] < x1 + 8) & (m[:, 1] > y0 - 8) & (m[:, 1] < y1 + 8)
     C = cov[:, :2, :2] - b[:, :, None] * cov[:, 2, :2][:, None, :]
-    return m[k].cpu().numpy(), C[k].cpu().numpy(), torch.exp(-0.5 * d ** 2 / sz)[k].cpu().numpy(), k
+    return m[k].cpu().numpy(), C[k].cpu().numpy(), torch.exp(-0.5 * d**2 / sz)[k].cpu().numpy(), k
 
 
 def lam_u1(fields, k):
@@ -38,7 +40,7 @@ def main():
     p.add_argument("--slice", type=int, default=62)
     p.add_argument("--out", required=True)
     a = p.parse_args()
-    vol = Volume(a.volume, (40., 4., 4.))
+    vol = Volume(a.volume, (40.0, 4.0, 4.0))
     cfg = phase1.P1Config(**json.load(open(a.config))["p1"])
     fields = phase1.analyse(vol, cfg)
     init, stats, _ = phase1.run(vol, cfg, fields=fields)
@@ -47,11 +49,16 @@ def main():
     n = init["n"]
     k = a.slice
     zc = (k + 0.5) * vol.dz
-    o = {"slice": vol.gt[k].cpu().numpy(), "stack": vol.gt[[k - 16, k - 12, k - 8, k - 4, k]].cpu().numpy(),
-         "lam": lam_u1(fields, k), "J": fields["J"][:, k].cpu().numpy(),
-         "xz": vol.gt[:, 128].cpu().numpy(), "parents": len(mu), "count0": stats["gaussians"]}
+    o = {
+        "slice": vol.gt[k].cpu().numpy(),
+        "stack": vol.gt[[k - 16, k - 12, k - 8, k - 4, k]].cpu().numpy(),
+        "lam": lam_u1(fields, k),
+        "J": fields["J"][:, k].cpu().numpy(),
+        "xz": vol.gt[:, 128].cpu().numpy(),
+        "parents": len(mu),
+        "count0": stats["gaussians"],
+    }
     sig = fields["sigmas"]
-    unit = 4.0
     bl = lambda t: blur3d(vol.gt[None], (t / vol.dz, t / vol.dy, t / vol.dx))[0]
     for i, b in enumerate((2, 4, 6)):
         o[f"band{i}"] = (bl(sig[b]) - bl(sig[b + 1]))[k].cpu().numpy()
@@ -76,7 +83,8 @@ def main():
     np.savez_compressed(a.out, **o)
     sel = np.abs(o["mu"][:, 2] - zc) <= 20
     u, c = np.unique(o["n"][sel], axis=0, return_counts=True)
-    for x, y in sorted(zip(c, u.tolist()), reverse=True)[:15]: print(x, y)
+    for x, y in sorted(zip(c, u.tolist()), reverse=True)[:15]:
+        print(x, y)
     print("parents on slice", sel.sum(), np.unique(o["mu"][:, 2])[-70:][:6], zc)
 
 
