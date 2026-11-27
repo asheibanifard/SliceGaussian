@@ -132,6 +132,18 @@ class GaussianField:
 # ---------------------------------------------------------------------------------------------------------------------
 def render_planes(field, vol, ks, radius_sigma=None, cull_eps=None):
     """V_hat at all voxel centres of the planes ks: (len(ks), H, W), differentiable. Only the Gaussians whose
+    radius_sigma slab reaches one of the planes are visited; their covariances are built inside the CUDA kernel from
+    the raw parameters (render_planes_reference is the earlier PyTorch path, kept for tests)."""
+    from .cuda import fieldcut
+    r = RADIUS_SIGMA if radius_sigma is None else radius_sigma
+    e = CULL_EPS if cull_eps is None else cull_eps
+    zs = [(k + 0.5) * vol.dz for k in ks]
+    return fieldcut.render_raw(field.p["xyz"], field.p["quat"], field.p["log_scale"], field.p["amp"], zs, vol.H, vol.W,
+                               vol.dx, vol.dy, r, e)
+
+
+def render_planes_reference(field, vol, ks, radius_sigma=None, cull_eps=None):
+    """V_hat at all voxel centres of the planes ks: (len(ks), H, W), differentiable. Only the Gaussians whose
     radius_sigma slab reaches one of the planes are passed to the kernel."""
     from .cuda import fieldcut
     r = RADIUS_SIGMA if radius_sigma is None else radius_sigma

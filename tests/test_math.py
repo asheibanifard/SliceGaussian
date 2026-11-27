@@ -137,3 +137,30 @@ def test_end_to_end_small(tmp_path):
     for event in info["wall_events"]:
         before = [float(r["wall_seconds"]) for r in rows if int(r["iteration"]) == event["iteration"]]
         assert before and event["wall_seconds"] >= max(before)
+
+
+@cuda
+def test_raw_parameter_kernel_matches_reference_path():
+    """The raw-parameter kernels (covariance built in CUDA, gradients for quaternion and log-scale) agree with the
+    earlier path, in which the covariance and its chain rule are computed by PyTorch."""
+    from slicegaussian.field import GaussianField, render_planes, render_planes_reference
+    from slicegaussian.volume import Volume
+    g = torch.Generator().manual_seed(2)
+    vol = Volume(np.random.default_rng(0).random((12, 40, 48)).astype(np.float32), (4.0, 1.0, 1.0))
+    M = 400
+    xyz = torch.rand(M, 3, generator=g) * torch.tensor([48.0, 40.0, 48.0])
+    s = torch.rand(M, 3, generator=g) * 3 + 0.5
+    q = torch.randn(M, 4, generator=g) * 2                                 # not normalised: tests the normalisation
+    field = GaussianField(xyz.cuda(), s.cuda(), q.cuda(), torch.randn(M, generator=g).cuda())
+    w = torch.randn(3, 40, 48, generator=g).cuda()
+    out = []
+    for fn in (render_planes, render_planes_reference):
+        for v in field.p.values():
+            v.grad = None
+        img = fn(field, vol, [3, 4, 9])
+        (img * w).sum().backward()
+        out.append((img.detach(), {k: v.grad.clone() for k, v in field.p.items()}))
+    (a, ga), (b, gb) = out
+    assert torch.allclose(a, b, atol=1e-5)
+    for k in ga:
+        assert (ga[k] - gb[k]).norm() <= 1e-4 * gb[k].norm(), k

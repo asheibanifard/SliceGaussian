@@ -33,6 +33,8 @@ def _ext():
             if os.environ.get("SLICEGAUSSIAN_JIT", "0") == "1":
                 raise ImportError("JIT requested")
             from .. import _C as ext
+            if not hasattr(ext, "raw_forward"):
+                raise ImportError("the prebuilt extension predates the raw-parameter kernels")
         except ImportError:
             from torch.utils.cpp_extension import load
             ext = load(name="slicegaussian_fieldcut",
@@ -67,3 +69,35 @@ def cov6(R, s):
 def render(xyz, R, s, amp, zs, H, W, dx, dy, radius=3.0, cull_eps=1e-5):
     z = torch.as_tensor(zs, device=xyz.device, dtype=torch.float32).reshape(-1)
     return FieldCut.apply(xyz, cov6(R, s), amp, z, H, W, float(dx), float(dy), float(radius), float(cull_eps))
+
+
+class RawFieldCut(torch.autograd.Function):
+    """The field on planes from the raw parameters (centre, quaternion, log-scale, amplitude) of the Gaussians idx.
+
+    The covariance is built inside the kernels, and the backward pass returns gradients for the whole parameter tensors
+    (zero outside idx), so no per-Gaussian tensors are formed or indexed in PyTorch."""
+
+    @staticmethod
+    def forward(ctx, xyz, quat, log_scale, amp, idx, zs, H, W, dx, dy, radius, cull_eps):
+        args = (idx, xyz.contiguous(), quat.contiguous(), log_scale.contiguous(), amp.contiguous(), zs.contiguous())
+        ctx.save_for_backward(*args)
+        ctx.cfg = (dx, dy, radius, cull_eps)
+        return _ext().raw_forward(*args, H, W, dx, dy, radius, cull_eps)
+
+    @staticmethod
+    def backward(ctx, grad):
+        idx, xyz, quat, ls, amp, zs = ctx.saved_tensors
+        gx, gq, gl, ga = _ext().raw_backward(grad.float().contiguous(), idx, xyz, quat, ls, amp, zs, *ctx.cfg)
+        return gx, gq, gl, ga, None, None, None, None, None, None, None, None
+
+
+def render_raw(xyz, quat, log_scale, amp, zs, H, W, dx, dy, radius=3.0, cull_eps=1e-5):
+    """Field on the planes zs, (K, H, W). Only the Gaussians whose truncated support reaches a plane are visited."""
+    z = torch.as_tensor(zs, device=xyz.device, dtype=torch.float32).reshape(-1)
+    with torch.no_grad():
+        idx = torch.nonzero(_ext().raw_mask(xyz.detach().contiguous(), quat.detach().contiguous(),
+                                            log_scale.detach().contiguous(), z, float(radius))).squeeze(1)
+    if len(idx) == 0:
+        return torch.zeros(len(z), H, W, device=xyz.device) + 0.0 * amp.sum()
+    return RawFieldCut.apply(xyz, quat, log_scale, amp, idx, z, H, W, float(dx), float(dy), float(radius),
+                             float(cull_eps))
