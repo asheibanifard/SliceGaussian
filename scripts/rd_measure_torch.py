@@ -16,7 +16,31 @@ from slicegaussian.field import GaussianField, render_volume
 from slicegaussian.storage import encode_arrays, decode_arrays, score_psnr, PRECISIONS
 
 
-def sources(reference, root, sample):
+VOLUMES = {"cremi_a": ("data/cremi/cremi_a.tif", (40., 4., 4.)),
+           "cremi_b": ("data/cremi/cremi_b.tif", (40., 4., 4.)),
+           "cremi_c": ("data/cremi/cremi_c.tif", (40., 4., 4.)),
+           "epfl": ("data/epfl/epfl_ca1.tif", (5., 5., 5.)),
+           "snemi3d": ("data/snemi3d/snemi3d.tif", (29., 6., 6.))}
+
+
+def sources(reference, root, name):
+    if name.startswith("cremi_"):
+        yield from cremi_sources(reference, root, name[-1])
+        return
+    # EPFL / SNEMI3D: the main-comparison runs (runs/neural) plus the extra operating points in root/models.
+    neural = Path("runs/neural") / name
+    for tau in (.8, .4, .2, .1, .05):
+        yield "slicegaussian", f"tau_{tau}", (neural / "slicegaussian/seed_0/model.pt" if tau == .1
+                                              else root / f"models/{name}/slicegaussian/tau_{tau}/model.pt")
+    for method in ("gaussianpile", "3dgs"):
+        for n in (100000, 300000):
+            yield method, f"initial_{n}", root / f"models/{name}/{method}/initial_{n}/model.pt"
+        yield method, "initial_1000000", neural / method / "seed_0/model.pt"
+    for method in ("neurcomp", "coordnet"):
+        yield method, "reference_architecture", neural / method / "seed_0/net.pth"
+
+
+def cremi_sources(reference, root, sample):
     old = reference / "results/paper"
     rd = old / "final-experiment-2/rate_distortion" / f"CREMI_{sample.upper()}"
     base = old / f"CREMI_{sample.upper()}"
@@ -118,18 +142,22 @@ def main():
     p.add_argument("--root", type=Path, default=Path("runs/rate_distortion"))
     p.add_argument("--samples", default="abc")
     p.add_argument("--methods", default="slicegaussian,gaussianpile,3dgs,neurcomp,coordnet")
+    p.add_argument("--volumes", default=None,
+                   help=f"comma-separated, from {', '.join(VOLUMES)}; overrides --samples (CREMI letters)")
     a = p.parse_args()
-    for sample in a.samples:
-        vol = load_volume(f"data/cremi/cremi_{sample}.tif", (40, 4, 4))
-        for method, setting, path in sources(a.reference_root, a.root, sample):
+    names = a.volumes.split(",") if a.volumes else [f"cremi_{s}" for s in a.samples]
+    for name in names:
+        tif, spacing = VOLUMES[name]
+        vol = load_volume(tif, spacing)
+        for method, setting, path in sources(a.reference_root, a.root, name):
             if method not in a.methods.split(","):
                 continue
             if not path.exists():
                 raise FileNotFoundError(path)
-            out = a.root / f"encoded/cremi_{sample}/{method}/{setting}"
+            out = a.root / f"encoded/{name}/{method}/{setting}"
             out.mkdir(parents=True, exist_ok=True)
             if (out / "points.json").exists():
-                print(f"Skipping {sample}/{method}/{setting}", flush=True)
+                print(f"Skipping {name}/{method}/{setting}", flush=True)
                 continue
             state = torch.load(path, map_location="cpu", weights_only=False)
             if method == "slicegaussian":
@@ -170,12 +198,12 @@ def main():
                         expected = score_psnr(np.load(reference_prediction, mmap_mode="r"), vol.volume, vol.valid_ids)
                         if abs(psnr - expected) > .03:
                             raise RuntimeError(f"decoded FP32 {method} does not match its reference prediction: {psnr} vs {expected}")
-                    row = {"volume": f"cremi_{sample}", "method": method, "setting": setting,
+                    row = {"volume": name, "method": method, "setting": setting,
                            "precision": precision, "gaussians": count, "state_scalars": scalars,
                            "raw_fp32_bytes": raw, "encoded_bytes": target.stat().st_size,
                            "decoded_psnr": psnr, "status": "ok", "archive": str(target), **provenance}
                 except ValueError as error:
-                    row = {"volume": f"cremi_{sample}", "method": method, "setting": setting,
+                    row = {"volume": name, "method": method, "setting": setting,
                            "precision": precision, "status": "unrepresentable", "error": str(error), **provenance}
                 points.append(row)
                 print(json.dumps(row), flush=True)
