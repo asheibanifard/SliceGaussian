@@ -49,6 +49,9 @@ def main():
     p.add_argument("--valid-only", action="store_true",
                    help="train on valid slices only (as SliceGaussian); the reference code draws from all Z slices")
     p.add_argument("--reference-root", type=Path, default=Path(__file__).resolve().parents[2] / "freqpile")
+    p.add_argument("--sigma-z", default="0",
+                   help="GaussianPile only: axial width of the focus model, in physical units, or 'dz' for the slice "
+                        "spacing (the GaussianPile paper's recommended setting); 0 = zero-thickness planes (default)")
     p.add_argument("--cap", type=int, default=0,
                    help="shared protocol: final Gaussian budget; a densification step that would exceed it keeps the "
                         "candidates with the largest accumulated gradient (0: no cap, the native recipe)")
@@ -64,6 +67,11 @@ def main():
     gp = mod if a.method == "gaussianpile" else mod.fg     # the 3DGS module reads SPACING and LOG_EVERY from GaussianPile's
     gp.SPACING = spacing
     gp.LOG_EVERY = a.log_every
+    sigma_z = spacing[0] if a.sigma_z == "dz" else float(a.sigma_z)
+    if a.method == "gaussianpile":
+        mod.SETTINGS = mod.RenderSettings(sigma_z=sigma_z, norm_mode="paper")
+    elif sigma_z:
+        raise SystemExit("--sigma-z applies to GaussianPile only")
     mod.fe.N0 = a.initial_n
 
     if a.method == "gaussianpile":
@@ -114,6 +122,7 @@ def main():
         "method": a.method, "volume": vol.describe() if hasattr(vol, "describe") else str(a.volume),
         "spacing_zyx": spacing, "initial_n": a.initial_n, "iterations": a.iterations, "seed": a.seed,
         "cap": a.cap or None,
+        "sigma_z": sigma_z if a.method == "gaussianpile" else None,
         "evaluation": f"slicegaussian.metrics.whole on valid slices, every {a.log_every} iterations and at the end",
         "training_slices": "valid only" if a.valid_only else "all Z (reference code)",
         "training": "unchanged native initialisation, optimiser, density control and supervision",
