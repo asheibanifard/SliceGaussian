@@ -1,0 +1,44 @@
+{
+ "seed": 0,
+ "codec": true,
+ "p1": {
+  "sigma_min": 0.5,
+  "sigma_max": 16.0,
+  "lam_scale": 1.0781238227406251,
+  "parent_spacing": 10.0,
+  "frequency": "directional",
+  "structure": "tensor",
+  "aggregation": "p90",
+  "subdivision": "anisotropic",
+  "support_radius": 2.0,
+  "support_samples": 64,
+  "tau_q": 0.1,
+  "n_max": 4,
+  "max_children": 64,
+  "max_gaussians": 2000000,
+  "b": 1.0
+ },
+ "p2": {
+  "slab": 1,
+  "beta_g": 0.1,
+  "beta_m": 0.1,
+  "beta_r": 0.1,
+  "multi": "smooth",
+  "multi_sigmas": "2,4",
+  "lr_xyz": 1.6e-05,
+  "lr_log_scale": 0.001,
+  "lr_quat": 0.0002,
+  "lr_amp": 0.00025,
+  "final_ratio": 0.1,
+  "max_anisotropy": 1000.0,
+  "eval_every": 100,
+  "full_every": 5000
+ },
+ "reestimation": {
+  "cycles": 3,
+  "cycle_iters": 10000,
+  "budget": 1000000,
+  "target": null,
+  "refit": "ls"
+ }
+}

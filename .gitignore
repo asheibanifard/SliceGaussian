@@ -19,7 +19,13 @@ runs/
 *.so
 # paper (not part of the code release)
 paper-cvpr2027/
+Journal/
 author-kit-*.zip
 SliceGaussian__*.zip
 *.docx
 Screenshot From *.png
+# personal application documents
+Armin_Sheibanifard_*
+downloaded_document.pdf
+# thesis drafts (not part of the code release)
+Thesis/
