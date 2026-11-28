@@ -9,11 +9,19 @@ import sys
 
 os.environ.setdefault("XLA_PYTHON_CLIENT_PREALLOCATE", "false")
 
+# name: (volume file, spacing zyx, checkpoint relative to the reference root, or None for runs/neural/<name>)
+VOLUMES = {"cremi_a": ("data/cremi/cremi_a.tif", [40., 4., 4.], "results/paper/CREMI_A/inif/seed_0/model.pkl"),
+           "cremi_b": ("data/cremi/cremi_b.tif", [40., 4., 4.], "results/paper/CREMI_B/inif/seed_0/model.pkl"),
+           "cremi_c": ("data/cremi/cremi_c.tif", [40., 4., 4.], "results/paper/CREMI_C/inif/seed_0/model.pkl"),
+           "epfl": ("data/epfl/epfl_ca1.tif", [5., 5., 5.], None),
+           "snemi3d": ("data/snemi3d/snemi3d.tif", [29., 6., 6.], None)}
+
 
 def main():
     p = argparse.ArgumentParser(description=__doc__)
     p.add_argument("--reference-root", type=Path, default=Path(__file__).resolve().parents[2] / "freqpile")
     p.add_argument("--root", type=Path, default=Path("runs/rate_distortion"))
+    p.add_argument("--volumes", default="cremi_a,cremi_b,cremi_c", help="comma-separated, from " + ", ".join(VOLUMES))
     a = p.parse_args()
     import jax
     if jax.default_backend() != "gpu":
@@ -25,9 +33,11 @@ def main():
     from storage import encode_arrays, decode_arrays, score_psnr, PRECISIONS
     sys.path.insert(0, str(a.reference_root / "baselines/inif/external/INIF"))
     from models import INR
-    for sample in "abc":
-        path = a.reference_root / f"results/paper/CREMI_{sample.upper()}/inif/seed_0/model.pkl"
-        out = a.root / f"encoded/cremi_{sample}/inif/reference_architecture"
+    for name in a.volumes.split(","):
+        tif, spacing, checkpoint = VOLUMES[name]
+        path = (a.reference_root / checkpoint if checkpoint
+                else Path("runs/neural") / name / "inif/seed_0/model.pkl")
+        out = a.root / f"encoded/{name}/inif/reference_architecture"
         out.mkdir(parents=True, exist_ok=True)
         if (out / "points.json").exists():
             continue
@@ -35,7 +45,7 @@ def main():
             params = pickle.load(f)
         arrays = {layer + "::" + key: np.asarray(v, np.float32)
                   for layer, values in params.items() for key, v in values.items()}
-        raw = tifffile.imread(f"data/cremi/cremi_{sample}.tif")
+        raw = tifffile.imread(tif)
         lo, hi = float(raw.min()), float(raw.max())
         gt = (raw.astype(np.float32) - lo) / (hi - lo)
         valid = [z for z in range(len(raw)) if raw[z].min() != raw[z].max()]
@@ -53,7 +63,7 @@ def main():
         metadata = {"method": "inif", "architecture": {"network": "INIF", "features": features,
                     "layers": 7, "frequency": 90., "coordinates": "zyx in [-1,1]",
                     "output_rule": "(network*(input_max-input_min)/100-input_min)/(input_max-input_min)"},
-                    "shape": list(gt.shape), "spacing": [40., 4., 4.], "input_min": lo, "input_max": hi,
+                    "shape": list(gt.shape), "spacing": spacing, "input_min": lo, "input_max": hi,
                     "raw_fp32_bytes": sum(v.nbytes for v in arrays.values()),
                     "state_scalars": sum(v.size for v in arrays.values()), "gaussians": None,
                     "inference_precision": "decoded parameters evaluated in FP32"}
@@ -81,7 +91,7 @@ def main():
                 expected = score_psnr(np.load(path.parent / "prediction.npy", mmap_mode="r"), gt, valid)
                 if abs(psnr - expected) > .03:
                     raise RuntimeError(f"decoded FP32 INIF does not match reference prediction: {psnr} vs {expected}")
-            row = {"volume": f"cremi_{sample}", "method": "inif", "setting": "reference_architecture",
+            row = {"volume": name, "method": "inif", "setting": "reference_architecture",
                    "precision": precision, "gaussians": None, "state_scalars": metadata["state_scalars"],
                    "raw_fp32_bytes": metadata["raw_fp32_bytes"], "encoded_bytes": target.stat().st_size,
                    "decoded_psnr": psnr, "status": "ok",

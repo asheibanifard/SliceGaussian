@@ -44,7 +44,7 @@ def summarize(root):
                          key=lambda r: r["total_seconds"]) for data in (upfront, replay)]
         best_at_budget = [max((r for r in data["trace"] if r["total_seconds"] <= budget),
                               key=lambda r: r["psnr"]) for data in (upfront, replay)]
-        gaussianpile_target = {"cremi_a": 32.33, "cremi_b": 31.11, "cremi_c": 31.49}[volume]
+        gaussianpile_target = {"cremi_a": 32.33, "cremi_b": 31.11, "cremi_c": 31.57}[volume]
         time_to_gaussianpile = {}
         for arm, data in arms.items():
             reached = [r["total_seconds"] for r in data["trace"] if r["psnr"] >= gaussianpile_target]
